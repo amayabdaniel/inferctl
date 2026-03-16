@@ -54,7 +54,18 @@ func runGen(cmd *cobra.Command, args []string) error {
 	if err := os.WriteFile(outFile, []byte(manifests), 0644); err != nil {
 		return fmt.Errorf("writing manifests: %w", err)
 	}
-
 	fmt.Printf("inferctl: generated %s manifests → %s\n", target, outFile)
+
+	// Generate Gateway API routes
+	gwManifests, err := generate.GatewayManifests(s)
+	if err != nil {
+		return fmt.Errorf("generating gateway manifests: %w", err)
+	}
+	gwFile := filepath.Join(outputDir, fmt.Sprintf("%s-gateway.yaml", s.Name))
+	if err := os.WriteFile(gwFile, []byte(gwManifests), 0644); err != nil {
+		return fmt.Errorf("writing gateway manifests: %w", err)
+	}
+	fmt.Printf("inferctl: generated gateway routes → %s\n", gwFile)
+
 	return nil
 }
