@@ -1,0 +1,6 @@
+bin/
+k8s/
+*.exe
+*.test
+*.prof
+vendor/
