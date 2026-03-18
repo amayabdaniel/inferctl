@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/amayabdaniel/inferctl/pkg/models"
 	"gopkg.in/yaml.v3"
 )
 
@@ -98,7 +99,5 @@ func (s *ModelSpec) OllamaModel() string {
 // VLLMModel returns the HuggingFace model identifier for vLLM.
 // Converts Ollama-style names to HF format (e.g., "qwen3:8b" → "Qwen/Qwen3-8B").
 func (s *ModelSpec) VLLMModel() string {
-	// For now, return as-is. Users can specify HF names directly.
-	// Future: add a mapping table for common Ollama → HF conversions.
-	return s.Model
+	return models.LookupHuggingFace(s.Model)
 }
