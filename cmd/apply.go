@@ -32,6 +32,13 @@ func init() {
 }
 
 func runApply(cmd *cobra.Command, args []string) error {
+	// Check kubectl exists before doing any work
+	if !dryRun {
+		if _, err := exec.LookPath("kubectl"); err != nil {
+			return fmt.Errorf("kubectl not found in PATH — install kubectl or use --dry-run to preview manifests")
+		}
+	}
+
 	s, err := spec.Load(specFile)
 	if err != nil {
 		return fmt.Errorf("loading spec: %w", err)

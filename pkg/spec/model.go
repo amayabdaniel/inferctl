@@ -68,6 +68,10 @@ func Load(path string) (*ModelSpec, error) {
 		return nil, fmt.Errorf("invalid spec: %w", err)
 	}
 
+	if err := spec.Sanitize(); err != nil {
+		return nil, fmt.Errorf("security check failed: %w", err)
+	}
+
 	return &spec, nil
 }
 
