@@ -103,6 +103,67 @@ func TestVLLMManifests_Defaults(t *testing.T) {
 	assertContains(t, out, "replicas: 1")         // default 1 replica
 }
 
+// Regression pin: the vLLM image reference must NOT be `:latest`. A
+// floating tag in a MANIFEST GENERATOR is one violation per user of the
+// tool — not one violation total. See the header comment in vllm.go and
+// research-factory ADR 0008 for the class.
+func TestVLLMManifests_ImageIsPinned(t *testing.T) {
+	s := &spec.ModelSpec{Name: "x", Model: "org/x"}
+	out, err := VLLMManifests(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "vllm/vllm-openai:latest") {
+		t.Error("template must NOT emit :latest — that's the ADR-0008 class this generator was leaking")
+	}
+	// Positive: some concrete version must appear so the pin is real,
+	// not merely "not latest".
+	if !strings.Contains(out, "vllm/vllm-openai:v") {
+		t.Errorf("expected a pinned v-tagged vllm image, got:\n%s", out)
+	}
+}
+
+// FMEA-style effect check for the second bug: cpu_cores in model.yaml
+// was being silently dropped from the generated Deployment. Validation
+// passed, the user thought it was honoured, and the container shipped
+// with no CPU request or limit. Test the emitted manifest, not the
+// intermediate templateData, because the whole failure lived between
+// spec-load and template-render.
+func TestVLLMManifests_CPUCoresIsEmitted(t *testing.T) {
+	s := &spec.ModelSpec{
+		Name:      "with-cpu",
+		Model:     "org/x",
+		Resources: spec.ResourceSpec{GPUCount: 1, MemoryMi: 16384, CPUCores: 4},
+	}
+	out, err := VLLMManifests(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The template inlines cpu under BOTH requests and limits — verify
+	// both, or a future refactor could drop one silently.
+	if strings.Count(out, `cpu: "4"`) < 2 {
+		t.Errorf("expected cpu limit AND request both set to \"4\", got:\n%s", out)
+	}
+}
+
+// Backwards-compat pin: with cpu_cores UNSET, no cpu line should be
+// emitted (the previous behaviour). Catches an "always emit cpu: 0"
+// regression that would over-constrain deployments that don't set it.
+func TestVLLMManifests_CPUCoresOmittedWhenUnset(t *testing.T) {
+	s := &spec.ModelSpec{
+		Name:      "no-cpu",
+		Model:     "org/x",
+		Resources: spec.ResourceSpec{GPUCount: 1, MemoryMi: 16384},
+	}
+	out, err := VLLMManifests(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "cpu:") {
+		t.Errorf("cpu MUST NOT appear when CPUCores unset (backwards compat); got:\n%s", out)
+	}
+}
+
 func assertContains(t *testing.T, haystack, needle string) {
 	t.Helper()
 	if !strings.Contains(haystack, needle) {

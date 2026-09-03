@@ -28,7 +28,11 @@ spec:
     spec:
       containers:
         - name: vllm
-          image: vllm/vllm-openai:latest
+          # Image tag is pinned deliberately. Do NOT switch to :latest —
+          # a floating tag on a runtime this fast-moving mass-produces
+          # deployment drift, one per user of inferctl gen. Bump this
+          # constant with a diff a reviewer can see; do not float it.
+          image: vllm/vllm-openai:v0.6.4.post1
           args:
             - --model
             - {{ .Model }}
@@ -49,10 +53,16 @@ spec:
 {{- if .MemoryMi }}
               memory: {{ .MemoryMi }}Mi
 {{- end }}
+{{- if .CPUCores }}
+              cpu: "{{ .CPUCores }}"
+{{- end }}
             requests:
               nvidia.com/gpu: "{{ .GPUCount }}"
 {{- if .MemoryMi }}
               memory: {{ .MemoryMi }}Mi
+{{- end }}
+{{- if .CPUCores }}
+              cpu: "{{ .CPUCores }}"
 {{- end }}
           readinessProbe:
             httpGet:
@@ -136,6 +146,7 @@ type templateData struct {
 	Quantization      string
 	GPUCount          int
 	MemoryMi          int
+	CPUCores          int
 	Metrics           bool
 	MinReplicas       int
 	MaxReplicas       int
@@ -150,6 +161,7 @@ func newTemplateData(s *spec.ModelSpec) templateData {
 		Quantization:  s.Quantization,
 		GPUCount:      s.Resources.GPUCount,
 		MemoryMi:      s.Resources.MemoryMi,
+		CPUCores:      s.Resources.CPUCores,
 		Metrics:       s.Observability.Metrics,
 		MinReplicas:   s.Scaling.MinReplicas,
 		MaxReplicas:   s.Scaling.MaxReplicas,
