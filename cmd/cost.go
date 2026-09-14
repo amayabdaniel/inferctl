@@ -64,30 +64,26 @@ func runCost(cmd *cobra.Command, args []string) error {
 		if known && gpu.vram < entry.VRAM_GB {
 			continue // skip GPUs that can't fit the model
 		}
-
-		costPerGPUHr := gpu.costHr * float64(gpuCount)
-		monthlyHours := hoursPerDay * 30
-		minCost := costPerGPUHr * monthlyHours * float64(minReplicas)
-		maxCost := costPerGPUHr * monthlyHours * float64(maxReplicas)
-
+		minCost := MonthlyGPUCost(gpu.costHr, gpuCount, hoursPerDay, minReplicas)
+		maxCost := MonthlyGPUCost(gpu.costHr, gpuCount, hoursPerDay, maxReplicas)
 		fmt.Printf("  %-14s  $%-9.2f  $%-13.0f  $%-13.0f\n",
 			gpu.name, gpu.costHr, minCost, maxCost)
 	}
 
 	fmt.Println()
 
-	// Spot pricing estimate (roughly 60-70% discount)
-	fmt.Println("With Spot/Preemptible (~65% discount):")
+	// Spot pricing estimate — ILLUSTRATIVE. See IllustrativeSpotDiscount
+	// in cost_math.go for the range of real-world variance; the 65%
+	// number is a defensible midpoint for L4/A10-class GPUs but the
+	// actual discount you'll see depends on region, GPU class, and time
+	// of day. Do not quote these numbers as commitments.
+	fmt.Println("With Spot/Preemptible (~65% discount — ILLUSTRATIVE, verify against provider's spot history):")
 	for _, gpu := range gpuOptions {
 		if known && gpu.vram < entry.VRAM_GB {
 			continue
 		}
-
-		spotRate := gpu.costHr * 0.35
-		costPerGPUHr := spotRate * float64(gpuCount)
-		monthlyHours := hoursPerDay * 30
-		minCost := costPerGPUHr * monthlyHours * float64(minReplicas)
-
+		spotRate := SpotHourly(gpu.costHr)
+		minCost := MonthlyGPUCost(spotRate, gpuCount, hoursPerDay, minReplicas)
 		fmt.Printf("  %-14s  $%-9.2f  $%-13.0f/mo\n",
 			gpu.name, spotRate, minCost)
 	}
@@ -96,7 +92,7 @@ func runCost(cmd *cobra.Command, args []string) error {
 
 	// Cost comparison with per-minute API pricing
 	fmt.Println("Break-even vs per-minute API pricing:")
-	minutesPerMonth := hoursPerDay * 30 * 60
+	minutesPerMonth := hoursPerDay * AvgDaysPerMonth * 60
 	apiPrices := []struct {
 		name    string
 		perMin  float64
@@ -116,10 +112,10 @@ func runCost(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	selfHostCost := cheapestGPU.costHr * float64(gpuCount) * hoursPerDay * 30 * float64(minReplicas)
+	selfHostCost := MonthlyGPUCost(cheapestGPU.costHr, gpuCount, hoursPerDay, minReplicas)
 
 	for _, api := range apiPrices {
-		breakEvenMin := selfHostCost / api.perMin
+		breakEvenMin := BreakEvenMinutes(selfHostCost, api.perMin)
 		fmt.Printf("  vs %s ($%.2f/min): self-host is cheaper above %.0f min/mo (you have %.0f min available)\n",
 			api.name, api.perMin, breakEvenMin, minutesPerMonth)
 	}
