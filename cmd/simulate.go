@@ -46,9 +46,27 @@ func runSimulate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Simulation: %s (%s, %.0fB params, %s quant, %d ctx)\n\n",
 		s.Name, s.Model, params, quantLabel(s.Quantization), ctxLen)
 
+	// Every number in the table below is an ESTIMATE from a named
+	// heuristic — not a measurement. Reproducibility conditions are
+	// spelled out here so a reader who pastes this into a capacity
+	// plan can see what was assumed, and challenge any assumption
+	// that does not match their deployment.
+	fmt.Println("Assumptions embedded in these estimates:")
+	fmt.Printf("  * Weights: params × bytes/param (fp16 = 2 B, q4 = 0.5 B, fp8 = 1 B).\n")
+	fmt.Printf("  * KV cache: %.1f GB per B-param per 4K context (linear in context, ignores layer count and GQA).\n", models.KVCacheGBPerBParamsPer4K)
+	fmt.Printf("  * Activation: %.0f%% of weight memory.\n", models.ActivationFractionOfWeights*100)
+	fmt.Printf("  * Tok/sec: roofline (memory-bandwidth / weights), single-stream decode, capped at %.0f tok/s.\n", models.MaxDecodeTokensPerSec)
+	fmt.Printf("  * TTFT: %.0f-token prompt, compute-bound prefill, floored at %.0f ms.\n", models.AssumedPromptTokens, models.TTFTFloorMs)
+	fmt.Printf("  * Concurrent: VRAM-free ÷ KV-per-request, clamped [1, %d]. No batching engine modelled.\n", models.MaxConcurrentReported)
+	fmt.Println("  NOT modelled: batching gains (real vLLM decode is 3-8× higher with proper batches), attention-KV read overhead at long context, LoRA adapters, engine differences beyond a vLLM-class assumption.")
+	fmt.Println()
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "GPU\tFits?\tVRAM Used\tVRAM Free\tTok/sec\tTTFT\tConcurrent\tTok/$\tVerdict")
-	fmt.Fprintln(w, "---\t-----\t---------\t---------\t-------\t----\t----------\t-----\t-------")
+	// Column headers name their conditions so a screenshot of the table
+	// alone still says what it's measuring.
+	fmt.Fprintf(w, "GPU\tFits?\tVRAM Used\tVRAM Free\tTok/s (@1×%.0f)\tTTFT (%.0f-tok prompt)\tConcurrent\tTok/$\tVerdict\n",
+		models.AssumedPromptTokens, models.AssumedPromptTokens)
+	fmt.Fprintln(w, "---\t-----\t---------\t---------\t--------------\t---------------------\t----------\t-----\t-------")
 
 	gpuOrder := []string{"T4", "L4", "A10G", "A100-40GB", "A100-80GB", "H100"}
 	for _, name := range gpuOrder {

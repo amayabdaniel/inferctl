@@ -47,24 +47,142 @@ type SimulationInput struct {
 	BatchSize          int
 }
 
+// The Simulate numbers are ESTIMATES with named assumptions, not
+// measurements. Extracting each heuristic into a named constant + a
+// small pure function means the CLI can print those assumptions
+// alongside the numbers, and unit tests can pin each heuristic in
+// isolation. If any of these constants change, the corresponding
+// assertion in simulate_test.go and the printed banner in
+// cmd/simulate.go must change too — the test set is the audit trail.
+//
+// What is NOT modelled today (a reviewer looking at the output should
+// know these limits, so the CLI banner names them):
+//   * Batch size — decode throughput assumes a single request stream.
+//     Real vLLM/TGI with proper batching sees 3-8x higher tok/s.
+//   * Attention-KV read overhead for long context in the decode
+//     roofline (the formula uses model weight size only).
+//   * Engine efficiency — an assumed vLLM-class PagedAttention
+//     implementation, capped at MaxDecodeTokensPerSec to keep an
+//     over-optimistic bandwidth number from suggesting throughput
+//     no real engine reaches on this hardware.
+//   * LoRA / adapter memory.
+//   * Prompt length beyond AssumedPromptTokens for TTFT.
+const (
+	// KVCacheGBPerBParamsPer4K is the KV-cache-size heuristic:
+	// approximately 0.5 GB per billion parameters, per 4K context
+	// tokens. The real formula is `2 * layers * hidden_dim * context
+	// * 2 (K+V) * bytes` — this ignores layer count and hidden dim
+	// and interpolates linearly with context. For 7-14B dense
+	// transformers at fp16 it is within ~30%; MoE models and models
+	// with grouped-query attention will be off further.
+	KVCacheGBPerBParamsPer4K = 0.5
+
+	// ActivationFractionOfWeights is the fraction of the loaded
+	// weights added for intermediate activation memory. 10% is a
+	// rough figure covering activations + workspace; real engines
+	// vary from ~5% (aggressive) to ~15% (conservative).
+	ActivationFractionOfWeights = 0.10
+
+	// MaxDecodeTokensPerSec caps the reported tokens/second so the
+	// roofline number (bandwidth ÷ weights) can't imply throughput a
+	// real engine cannot reach — realistic single-stream vLLM decode
+	// tops out well before hardware bandwidth peak because attention
+	// reads and pipeline overhead eat into the ceiling.
+	MaxDecodeTokensPerSec = 200.0
+
+	// AssumedPromptTokens is the prompt length assumed for the
+	// prefill/TTFT calculation. Real prompts vary from 10s to 10k+
+	// tokens; TTFT scales roughly linearly with prompt length in the
+	// compute-bound regime.
+	AssumedPromptTokens = 256.0
+
+	// TTFTFloorMs prevents the estimate from printing sub-10ms
+	// numbers for tiny models on H100 — real single-request TTFT
+	// has kernel-launch + tokenizer overhead below this floor.
+	TTFTFloorMs = 10.0
+
+	// MaxConcurrentReported caps the concurrency estimate; beyond
+	// this the estimate is unreliable (real ceilings are set by
+	// batching engines, not raw KV-cache math).
+	MaxConcurrentReported = 64
+)
+
+// VRAMBreakdown splits VRAM usage into its three heuristic components
+// so tests and the CLI banner can name each. Sum is what's actually
+// consumed (VRAMUsedGB).
+type VRAMBreakdown struct {
+	WeightsGB    float64
+	KVCacheGB    float64
+	ActivationGB float64
+}
+
+// EstimateVRAMBreakdown applies the three heuristics from the constants
+// above. Pure function; unit-testable without a GPU or a Simulate call.
+// (Named "Breakdown" to avoid collision with the older
+// EstimateVRAM(modelName) helper in registry.go, which returns a single
+// scalar look-up-by-model — a different job.)
+func EstimateVRAMBreakdown(paramsB float64, contextLen int, quantization string) VRAMBreakdown {
+	weights := paramsB * bytesForQuantization(quantization)
+	kv := paramsB * KVCacheGBPerBParamsPer4K * (float64(contextLen) / 4096.0)
+	activation := weights * ActivationFractionOfWeights
+	return VRAMBreakdown{WeightsGB: weights, KVCacheGB: kv, ActivationGB: activation}
+}
+
+// EstimateDecodeTokensPerSec applies the roofline model
+// `bandwidth / weights` and caps at MaxDecodeTokensPerSec. Returns the
+// rounded value the CLI prints.
+func EstimateDecodeTokensPerSec(gpu GPUSpec, weightsGB float64) float64 {
+	if weightsGB <= 0 {
+		return 0
+	}
+	tps := gpu.MemBandwidthGBs * 1e9 / (weightsGB * 1e9)
+	if tps > MaxDecodeTokensPerSec {
+		tps = MaxDecodeTokensPerSec
+	}
+	return math.Round(tps*10) / 10
+}
+
+// EstimateTTFTMs computes the compute-bound prefill time for the
+// AssumedPromptTokens length, floored at TTFTFloorMs.
+func EstimateTTFTMs(paramsB float64, gpu GPUSpec) float64 {
+	prefillOps := AssumedPromptTokens * 2 * paramsB * 1e9
+	if gpu.FP16_TFLOPS <= 0 {
+		return TTFTFloorMs
+	}
+	ttft := math.Round(prefillOps / (gpu.FP16_TFLOPS * 1e12) * 1000)
+	if ttft < TTFTFloorMs {
+		return TTFTFloorMs
+	}
+	return ttft
+}
+
+// EstimateConcurrent divides remaining VRAM by KV-per-request and
+// clamps to [1, MaxConcurrentReported]. Returns 0 only when
+// kvPerRequest is non-positive (unmodelled shape).
+func EstimateConcurrent(vramFreeGB, kvPerRequestGB float64) int {
+	if kvPerRequestGB <= 0 {
+		return 0
+	}
+	c := int(vramFreeGB / kvPerRequestGB)
+	if c < 1 {
+		return 1
+	}
+	if c > MaxConcurrentReported {
+		return MaxConcurrentReported
+	}
+	return c
+}
+
 // Simulate predicts performance of a model on a GPU without running it.
 // Uses roofline model: LLM inference is memory-bandwidth-bound during generation.
 // TTFT is compute-bound (prefill). Token generation is bandwidth-bound (decode).
+// See the constants above for every assumption embedded in these numbers.
 func Simulate(input SimulationInput, gpu GPUSpec) SimulationResult {
 	result := SimulationResult{GPU: gpu.Name}
 
-	// Step 1: Estimate VRAM usage
-	bytesPerParam := bytesForQuantization(input.Quantization)
-	modelSizeGB := input.ParametersBillions * bytesPerParam
-
-	// KV cache estimate: 2 * layers * hidden_dim * context * 2 (K+V) * bytes
-	// Rough heuristic: ~0.5GB per billion params per 4K context
-	kvCacheGB := input.ParametersBillions * 0.5 * (float64(input.ContextLength) / 4096.0)
-
-	// Activation memory: ~10% of model size
-	activationGB := modelSizeGB * 0.10
-
-	result.VRAMUsedGB = modelSizeGB + kvCacheGB + activationGB
+	// Step 1: VRAM breakdown.
+	vram := EstimateVRAMBreakdown(input.ParametersBillions, input.ContextLength, input.Quantization)
+	result.VRAMUsedGB = vram.WeightsGB + vram.KVCacheGB + vram.ActivationGB
 	result.VRAMFreeGB = gpu.VRAM_GB - result.VRAMUsedGB
 	result.VRAMUtilPercent = (result.VRAMUsedGB / gpu.VRAM_GB) * 100
 	result.Fits = result.VRAMFreeGB > 0
@@ -75,38 +193,10 @@ func Simulate(input SimulationInput, gpu GPUSpec) SimulationResult {
 		return result
 	}
 
-	// Step 2: Estimate token generation speed (decode phase)
-	// LLM decode is memory-bandwidth-bound: tokens/sec ≈ bandwidth / model_size
-	modelSizeBytes := modelSizeGB * 1e9
-	result.EstTokensPerSec = gpu.MemBandwidthGBs * 1e9 / modelSizeBytes
-	// Cap at reasonable max (hardware can't exceed certain rates)
-	if result.EstTokensPerSec > 200 {
-		result.EstTokensPerSec = 200
-	}
-	result.EstTokensPerSec = math.Round(result.EstTokensPerSec*10) / 10
-
-	// Step 3: Estimate TTFT (prefill phase)
-	// Prefill is compute-bound: TTFT ≈ (prompt_tokens * 2 * params) / FLOPS
-	promptTokens := 256.0 // assume average prompt
-	prefillOps := promptTokens * 2 * input.ParametersBillions * 1e9
-	ttftSeconds := prefillOps / (gpu.FP16_TFLOPS * 1e12)
-	result.EstTTFTMs = math.Round(ttftSeconds * 1000)
-	if result.EstTTFTMs < 10 {
-		result.EstTTFTMs = 10 // floor
-	}
-
-	// Step 4: Estimate max concurrent requests
-	// Each concurrent request needs KV cache memory
-	kvPerRequest := kvCacheGB // already scaled by context length
-	if kvPerRequest > 0 {
-		result.EstConcurrent = int(result.VRAMFreeGB / kvPerRequest)
-		if result.EstConcurrent < 1 {
-			result.EstConcurrent = 1
-		}
-		if result.EstConcurrent > 64 {
-			result.EstConcurrent = 64
-		}
-	}
+	// Step 2-4: throughput + latency + concurrency estimates.
+	result.EstTokensPerSec = EstimateDecodeTokensPerSec(gpu, vram.WeightsGB)
+	result.EstTTFTMs = EstimateTTFTMs(input.ParametersBillions, gpu)
+	result.EstConcurrent = EstimateConcurrent(result.VRAMFreeGB, vram.KVCacheGB)
 
 	// Step 5: Calculate tokens per dollar
 	tokensPerHour := result.EstTokensPerSec * 3600
