@@ -58,7 +58,13 @@ Three focused sessions (dates from `git log`) covered:
 | `root`     | **glue**                  | n/a          | Cobra glue; nothing to test |
 | `simulate` (bench) | uncovered                | n/a  | `simulate`'s heuristics change output magnitude; a Go benchmark on the pure helpers would catch a perf regression but there is no perf-regression concern yet |
 
-Test files: 8 (`pkg/spec/{sanitize,model}_test.go`, `pkg/models/{registry,simulate}_test.go`, `pkg/generate/{vllm,gateway}_test.go`, `cmd/info_test.go`, `cmd/apply_test.go`, `cmd/cost_math_test.go`) — up from 1 at the start of the pass series (per orchestrator's original brief which had reported the wrong count; actual pre-pass count was 7).
+Test file count deliberately not written down here. The per-command
+table above is the durable record of what's covered; a tally has a
+short shelf life, drifts silently, and this file has already been
+wrong about it three times in three revisions — recording it again
+would convert a two-second `find . -name '*_test.go' | wc -l` check
+into something a reader trusts without running. Run the find if you
+need the number today.
 
 CI: `.github/workflows/ci.yaml` gated to `push:branches:[ci-run]` — same "safe branch" pattern research-factory uses. Do NOT push to `ci-run` casually; Daniel has limited Actions minutes.
 
