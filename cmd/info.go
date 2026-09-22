@@ -19,9 +19,9 @@ func init() {
 }
 
 type gpuOption struct {
-	name     string
-	vram     float64
-	costHr   float64
+	name   string
+	vram   float64
+	costHr float64
 }
 
 var gpuOptions = []gpuOption{

@@ -205,7 +205,7 @@ func TestSimulate_AssumedPromptTokensPin(t *testing.T) {
 	}
 	// 8B model on A100-80GB (312 TFLOPS): 256 × 2 × 8e9 / 312e12 = 13.1ms
 	ttft := EstimateTTFTMs(8, KnownGPUs["A100-80GB"])
-	want := math.Round(256*2*8e9/(312e12)*1000)
+	want := math.Round(256 * 2 * 8e9 / (312e12) * 1000)
 	if math.Abs(ttft-want) > 0.001 && ttft != TTFTFloorMs {
 		t.Errorf("TTFT must equal prefill/FLOPS or hit floor; got %v want %v (or floor %v)", ttft, want, TTFTFloorMs)
 	}
@@ -262,8 +262,8 @@ func TestSimulate_VRAMScalesWithParams(t *testing.T) {
 // heuristic (which is often what a naive extension would do), this
 // catches it.
 func TestSimulate_QuantizationAffectsWeightsNotKV(t *testing.T) {
-	fp16 := EstimateVRAMBreakdown(8, 4096, "")       // 2 bytes/param
-	q4 := EstimateVRAMBreakdown(8, 4096, "q4_k_m")   // 0.5 bytes/param
+	fp16 := EstimateVRAMBreakdown(8, 4096, "")     // 2 bytes/param
+	q4 := EstimateVRAMBreakdown(8, 4096, "q4_k_m") // 0.5 bytes/param
 	if q4.WeightsGB >= fp16.WeightsGB {
 		t.Error("q4 weights must be smaller than fp16 weights")
 	}

@@ -98,7 +98,7 @@ func TestVLLMManifests_Defaults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertContains(t, out, `"4096"`)       // default context length
+	assertContains(t, out, `"4096"`)              // default context length
 	assertContains(t, out, `nvidia.com/gpu: "1"`) // default 1 GPU
 	assertContains(t, out, "replicas: 1")         // default 1 replica
 }

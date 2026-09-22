@@ -11,16 +11,16 @@ import (
 // ModelSpec is the single source of truth for a model deployment.
 // Same file runs on Ollama locally and generates K8s manifests for vLLM.
 type ModelSpec struct {
-	Name           string          `yaml:"name"`
-	Model          string          `yaml:"model"`
-	ContextLength  int             `yaml:"context_length,omitempty"`
-	Quantization   string          `yaml:"quantization,omitempty"`
-	PromptTemplate string          `yaml:"prompt_template,omitempty"`
-	Tools          []ToolSpec      `yaml:"tools,omitempty"`
+	Name           string            `yaml:"name"`
+	Model          string            `yaml:"model"`
+	ContextLength  int               `yaml:"context_length,omitempty"`
+	Quantization   string            `yaml:"quantization,omitempty"`
+	PromptTemplate string            `yaml:"prompt_template,omitempty"`
+	Tools          []ToolSpec        `yaml:"tools,omitempty"`
 	Observability  ObservabilitySpec `yaml:"observability,omitempty"`
-	Scaling        ScalingSpec     `yaml:"scaling,omitempty"`
-	Resources      ResourceSpec    `yaml:"resources,omitempty"`
-	Security       SecuritySpec    `yaml:"security,omitempty"`
+	Scaling        ScalingSpec       `yaml:"scaling,omitempty"`
+	Resources      ResourceSpec      `yaml:"resources,omitempty"`
+	Security       SecuritySpec      `yaml:"security,omitempty"`
 }
 
 type ToolSpec struct {
@@ -35,16 +35,16 @@ type ObservabilitySpec struct {
 }
 
 type ScalingSpec struct {
-	MinReplicas          int `yaml:"min_replicas,omitempty"`
-	MaxReplicas          int `yaml:"max_replicas,omitempty"`
-	TargetTokensPerSec   int `yaml:"target_tokens_per_second,omitempty"`
+	MinReplicas        int `yaml:"min_replicas,omitempty"`
+	MaxReplicas        int `yaml:"max_replicas,omitempty"`
+	TargetTokensPerSec int `yaml:"target_tokens_per_second,omitempty"`
 }
 
 type ResourceSpec struct {
-	GPU       string `yaml:"gpu,omitempty"`
-	GPUCount  int    `yaml:"gpu_count,omitempty"`
-	MemoryMi  int    `yaml:"memory_mi,omitempty"`
-	CPUCores  int    `yaml:"cpu_cores,omitempty"`
+	GPU      string `yaml:"gpu,omitempty"`
+	GPUCount int    `yaml:"gpu_count,omitempty"`
+	MemoryMi int    `yaml:"memory_mi,omitempty"`
+	CPUCores int    `yaml:"cpu_cores,omitempty"`
 }
 
 type SecuritySpec struct {

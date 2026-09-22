@@ -17,9 +17,10 @@ const AvgDaysPerMonth = 30.4375
 // IllustrativeSpotDiscount is a FIXED discount used only to give users
 // a rough sense of the shape. Real spot markets vary by region,
 // instance type, and hour of day:
-//   * L4  on AWS us-east-1: p50 discount ~60-65%, p95 ~40-70%
-//   * A10 on AWS us-east-1: p50 discount ~55-65%
-//   * H100 anywhere:        p50 discount ~30-50%, sometimes 0%
+//   - L4  on AWS us-east-1: p50 discount ~60-65%, p95 ~40-70%
+//   - A10 on AWS us-east-1: p50 discount ~55-65%
+//   - H100 anywhere:        p50 discount ~30-50%, sometimes 0%
+//
 // The 0.65 constant is a defensible midpoint for the small/mid GPUs
 // this tool most often targets, but users should verify against their
 // provider's actual spot history before treating this number as a
@@ -29,10 +30,10 @@ const IllustrativeSpotDiscount = 0.65
 // MonthlyGPUCost returns the estimated monthly cost of a deployment,
 // using the AWS/GCP-standard 30.4375 days/month constant. Inputs:
 //
-//   hourlyRate:  on-demand $/hr for a single GPU of this type
-//   gpuCount:    GPUs per replica (from spec.Resources.GPUCount)
-//   hoursPerDay: user-provided operating hours (default 24 = always on)
-//   replicas:    replica count multiplier
+//	hourlyRate:  on-demand $/hr for a single GPU of this type
+//	gpuCount:    GPUs per replica (from spec.Resources.GPUCount)
+//	hoursPerDay: user-provided operating hours (default 24 = always on)
+//	replicas:    replica count multiplier
 //
 // All inputs are treated as independent multipliers; no capping, no
 // step function. Returning float64 (not a currency type) is deliberate

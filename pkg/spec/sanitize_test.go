@@ -48,7 +48,7 @@ func TestSanitize_InvalidName(t *testing.T) {
 		"has spaces",
 		"has_underscore",
 		"-starts-with-dash",
-		"a",                  // too short
+		"a",                     // too short
 		strings.Repeat("x", 65), // too long
 	}
 	for _, name := range invalid {

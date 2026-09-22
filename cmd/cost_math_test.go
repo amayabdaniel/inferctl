@@ -61,11 +61,11 @@ func TestMonthlyGPUCost_LinearInHoursPerDay(t *testing.T) {
 // hoursPerDay value silently becomes 24.
 func TestMonthlyGPUCost_ZeroInputsProduceZero(t *testing.T) {
 	cases := []struct {
-		name  string
-		hr    float64
-		gpu   int
-		hrs   float64
-		reps  int
+		name string
+		hr   float64
+		gpu  int
+		hrs  float64
+		reps int
 	}{
 		{"zero_rate", 0, 1, 24, 1},
 		{"zero_gpu", 1, 0, 24, 1},

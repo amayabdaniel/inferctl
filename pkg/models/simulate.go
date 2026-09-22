@@ -26,17 +26,17 @@ var KnownGPUs = map[string]GPUSpec{
 
 // SimulationResult predicts performance characteristics.
 type SimulationResult struct {
-	GPU              string
-	Fits             bool
-	VRAMUsedGB       float64
-	VRAMFreeGB       float64
-	VRAMUtilPercent  float64
-	EstTokensPerSec  float64 // generation speed
-	EstTTFTMs        float64 // time to first token in ms
-	EstConcurrent    int     // max concurrent requests before degradation
-	TokensPerDollar  float64
-	Recommendation   string
-	Warnings         []string
+	GPU             string
+	Fits            bool
+	VRAMUsedGB      float64
+	VRAMFreeGB      float64
+	VRAMUtilPercent float64
+	EstTokensPerSec float64 // generation speed
+	EstTTFTMs       float64 // time to first token in ms
+	EstConcurrent   int     // max concurrent requests before degradation
+	TokensPerDollar float64
+	Recommendation  string
+	Warnings        []string
 }
 
 // SimulationInput contains model parameters for prediction.
@@ -57,16 +57,16 @@ type SimulationInput struct {
 //
 // What is NOT modelled today (a reviewer looking at the output should
 // know these limits, so the CLI banner names them):
-//   * Batch size — decode throughput assumes a single request stream.
+//   - Batch size — decode throughput assumes a single request stream.
 //     Real vLLM/TGI with proper batching sees 3-8x higher tok/s.
-//   * Attention-KV read overhead for long context in the decode
+//   - Attention-KV read overhead for long context in the decode
 //     roofline (the formula uses model weight size only).
-//   * Engine efficiency — an assumed vLLM-class PagedAttention
+//   - Engine efficiency — an assumed vLLM-class PagedAttention
 //     implementation, capped at MaxDecodeTokensPerSec to keep an
 //     over-optimistic bandwidth number from suggesting throughput
 //     no real engine reaches on this hardware.
-//   * LoRA / adapter memory.
-//   * Prompt length beyond AssumedPromptTokens for TTFT.
+//   - LoRA / adapter memory.
+//   - Prompt length beyond AssumedPromptTokens for TTFT.
 const (
 	// KVCacheGBPerBParamsPer4K is the KV-cache-size heuristic:
 	// approximately 0.5 GB per billion parameters, per 4K context
@@ -264,7 +264,7 @@ func LookupModelParams(modelName string) float64 {
 		"llama3.3:8b": 8, "llama3.3:70b": 70,
 		"deepseek-r1:7b": 7, "deepseek-r1:14b": 14, "deepseek-r1:70b": 70,
 		"ministral:8b": 8, "mistral:7b": 7,
-		"phi4:14b": 14,
+		"phi4:14b":              14,
 		"deepseek-coder-v2:16b": 16, "qwen2.5-coder:7b": 7,
 		"nomic-embed-text": 0.137,
 	}

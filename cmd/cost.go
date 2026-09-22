@@ -94,8 +94,8 @@ func runCost(cmd *cobra.Command, args []string) error {
 	fmt.Println("Break-even vs per-minute API pricing:")
 	minutesPerMonth := hoursPerDay * AvgDaysPerMonth * 60
 	apiPrices := []struct {
-		name    string
-		perMin  float64
+		name   string
+		perMin float64
 	}{
 		{"Bland.ai", 0.09},
 		{"Retell.ai", 0.07},

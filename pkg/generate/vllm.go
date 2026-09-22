@@ -140,31 +140,31 @@ spec:
 `
 
 type templateData struct {
-	Name              string
-	Model             string
-	ContextLength     int
-	Quantization      string
-	GPUCount          int
-	MemoryMi          int
-	CPUCores          int
-	Metrics           bool
-	MinReplicas       int
-	MaxReplicas       int
+	Name               string
+	Model              string
+	ContextLength      int
+	Quantization       string
+	GPUCount           int
+	MemoryMi           int
+	CPUCores           int
+	Metrics            bool
+	MinReplicas        int
+	MaxReplicas        int
 	TargetTokensPerSec int
 }
 
 func newTemplateData(s *spec.ModelSpec) templateData {
 	d := templateData{
-		Name:          s.Name,
-		Model:         s.VLLMModel(),
-		ContextLength: s.ContextLength,
-		Quantization:  s.Quantization,
-		GPUCount:      s.Resources.GPUCount,
-		MemoryMi:      s.Resources.MemoryMi,
-		CPUCores:      s.Resources.CPUCores,
-		Metrics:       s.Observability.Metrics,
-		MinReplicas:   s.Scaling.MinReplicas,
-		MaxReplicas:   s.Scaling.MaxReplicas,
+		Name:               s.Name,
+		Model:              s.VLLMModel(),
+		ContextLength:      s.ContextLength,
+		Quantization:       s.Quantization,
+		GPUCount:           s.Resources.GPUCount,
+		MemoryMi:           s.Resources.MemoryMi,
+		CPUCores:           s.Resources.CPUCores,
+		Metrics:            s.Observability.Metrics,
+		MinReplicas:        s.Scaling.MinReplicas,
+		MaxReplicas:        s.Scaling.MaxReplicas,
 		TargetTokensPerSec: s.Scaling.TargetTokensPerSec,
 	}
 
