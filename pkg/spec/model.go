@@ -49,9 +49,8 @@ type ResourceSpec struct {
 }
 
 type SecuritySpec struct {
-	PromptInjectionProtection bool     `yaml:"prompt_injection_protection,omitempty"`
-	PIIRedaction              bool     `yaml:"pii_redaction,omitempty"`
-	AllowedOrigins            []string `yaml:"allowed_origins,omitempty"`
+	PromptInjectionProtection bool `yaml:"prompt_injection_protection,omitempty"`
+	PIIRedaction              bool `yaml:"pii_redaction,omitempty"`
 }
 
 func Load(path string) (*ModelSpec, error) {

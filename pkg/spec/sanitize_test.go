@@ -1,6 +1,8 @@
 package spec
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -134,20 +136,30 @@ func TestSanitize_ModelRefTooLong(t *testing.T) {
 	}
 }
 
-func TestSanitize_AllowedOriginsValidation(t *testing.T) {
-	s := &ModelSpec{
-		Name:  "test-model",
-		Model: "qwen3:8b",
-		Security: SecuritySpec{
-			AllowedOrigins: []string{"https://app.example.com", "*"},
-		},
+// AllowedOrigins was declared, validated, tested, and never consumed —
+// nothing in the gateway generator emitted a CORS policy, so an operator
+// setting allowed_origins got a spec that validated cleanly and
+// restricted nothing. Removed in this repo. This test pins the removal:
+// a spec that carries allowed_origins now fails LOUDLY at parse (via
+// strict decoding in Load), not silently at manifest generation.
+func TestLoad_AllowedOriginsIsRemovedAndFailsLoudly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "model.yaml")
+	body := `
+name: test
+model: qwen3:8b
+security:
+  allowed_origins:
+    - https://app.example.com
+`
+	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		t.Fatalf("write: %v", err)
 	}
-	if err := s.Sanitize(); err != nil {
-		t.Fatalf("expected valid origins, got: %v", err)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for removed allowed_origins field, got nil")
 	}
-
-	s.Security.AllowedOrigins = []string{"not-a-url"}
-	if err := s.Sanitize(); err == nil {
-		t.Fatal("expected error for invalid origin")
+	if !strings.Contains(err.Error(), "allowed_origins") {
+		t.Errorf("error must name the removed field so an operator can find their stale config; got: %v", err)
 	}
 }

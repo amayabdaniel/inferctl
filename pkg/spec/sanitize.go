@@ -52,12 +52,6 @@ func (s *ModelSpec) Sanitize() error {
 		}
 	}
 
-	for _, origin := range s.Security.AllowedOrigins {
-		if err := validateOrigin(origin); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -122,12 +116,3 @@ func validatePromptTemplate(tmpl string) error {
 	return nil
 }
 
-func validateOrigin(origin string) error {
-	if origin == "*" {
-		return nil
-	}
-	if !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
-		return fmt.Errorf("allowed_origin %q must be http:// or https:// or *", origin)
-	}
-	return nil
-}
