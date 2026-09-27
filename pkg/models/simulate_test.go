@@ -2,6 +2,7 @@ package models
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -23,9 +24,12 @@ func TestSimulate_SmallModelOnLargeGPU(t *testing.T) {
 	if result.Recommendation == "" {
 		t.Error("expected recommendation")
 	}
-	// Should recommend a cheaper GPU
-	if result.VRAMUtilPercent < 30 {
-		t.Logf("Recommendation: %s", result.Recommendation)
+	// The <30% util branch of generateRecommendation MUST name a cheaper
+	// GPU — that's the whole point of running the simulator for a small
+	// model on a big card. `t.Logf` here previously let a Recommendation
+	// of "" or one that pointed at a MORE expensive GPU pass silently.
+	if !strings.Contains(strings.ToLower(result.Recommendation), "cheaper") {
+		t.Errorf("recommendation for a small model on a large GPU must call out that a cheaper GPU exists; got: %q", result.Recommendation)
 	}
 }
 
