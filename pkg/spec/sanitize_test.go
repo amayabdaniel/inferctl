@@ -136,6 +136,32 @@ func TestSanitize_ModelRefTooLong(t *testing.T) {
 	}
 }
 
+// Criticality validation: empty (omit-the-field) and the three CRD
+// values pass; anything else — including case variants and typos —
+// fails with a message that names the offending value.
+func TestSanitize_CriticalityValidation(t *testing.T) {
+	for _, ok := range []string{"", "Critical", "Standard", "Sheddable"} {
+		t.Run("accepts_"+ok, func(t *testing.T) {
+			s := &ModelSpec{Name: "test", Model: "qwen3:8b", Security: SecuritySpec{Criticality: ok}}
+			if err := s.Sanitize(); err != nil {
+				t.Errorf("valid criticality %q rejected: %v", ok, err)
+			}
+		})
+	}
+	for _, bad := range []string{"standard", "critical", "sheddable", "Stanadard", "high", "low"} {
+		t.Run("rejects_"+bad, func(t *testing.T) {
+			s := &ModelSpec{Name: "test", Model: "qwen3:8b", Security: SecuritySpec{Criticality: bad}}
+			err := s.Sanitize()
+			if err == nil {
+				t.Fatalf("invalid criticality %q accepted", bad)
+			}
+			if !strings.Contains(err.Error(), bad) {
+				t.Errorf("error must name the offending value %q; got: %v", bad, err)
+			}
+		})
+	}
+}
+
 // AllowedOrigins was declared, validated, tested, and never consumed —
 // nothing in the gateway generator emitted a CORS policy, so an operator
 // setting allowed_origins got a spec that validated cleanly and

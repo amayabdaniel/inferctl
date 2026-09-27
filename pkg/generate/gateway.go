@@ -42,8 +42,8 @@ spec:
   targetModels:
     - name: {{ .Name }}-vllm
       weight: 100
-{{- if .CostBudget }}
-  criticality: Standard
+{{- if .Criticality }}
+  criticality: {{ .Criticality }}
 {{- end }}
 `
 
@@ -80,10 +80,10 @@ spec:
 `
 
 type gatewayData struct {
-	Name       string
-	Model      string
-	CostBudget bool
-	Isolated   bool
+	Name        string
+	Model       string
+	Criticality string
+	Isolated    bool
 }
 
 // GatewayManifests generates Gateway API Inference Extension routes and optional
@@ -92,12 +92,17 @@ func GatewayManifests(s *spec.ModelSpec) (string, error) {
 	data := gatewayData{
 		Name:  s.Name,
 		Model: s.VLLMModel(),
-		// CostBudget stays coupled to the LLM-safety flags for now — the
-		// coupling is a separate finding and requires a policy decision
-		// (a cost budget implies a numeric ceiling that has to come from
-		// somewhere, unlike NetworkPolicy which can default restrictive
-		// visibly).
-		CostBudget: s.Security.PromptInjectionProtection || s.Security.PIIRedaction,
+		// Criticality is emitted only when the operator explicitly sets
+		// it — Critical, Standard, or Sheddable, validated by Sanitize.
+		// No default: none of the three values is safe on an operator's
+		// behalf (Critical can starve other workloads, Sheddable can
+		// evict this one under pressure, Standard is a guess in the
+		// middle). An absent field defers to the InferenceModel CRD's
+		// own default, which is the authority. Previously this was a
+		// bool named CostBudget gated on PromptInjectionProtection ||
+		// PIIRedaction, so enabling either LLM-safety feature silently
+		// downgraded the workload's scheduling priority to Standard.
+		Criticality: s.Security.Criticality,
 		// Network isolation derives from an explicit security field.
 		// Default (nil pointer) is true so a spec with no security block
 		// still gets a NetworkPolicy in its generated YAML — restrictive

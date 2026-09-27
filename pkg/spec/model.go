@@ -52,6 +52,16 @@ type SecuritySpec struct {
 	PromptInjectionProtection bool `yaml:"prompt_injection_protection,omitempty"`
 	PIIRedaction              bool `yaml:"pii_redaction,omitempty"`
 
+	// Criticality maps to the InferenceModel CRD's scheduling-priority
+	// classification. Empty (absent in YAML) means "do not emit the
+	// field", deferring to the CRD's own default — inferctl should not
+	// pick a scheduling priority on the operator's behalf because none
+	// of the three values is safe as a default (Critical can starve
+	// other workloads, Sheddable can evict this one under pressure,
+	// Standard is a guess in the middle). Legal values validated by
+	// Sanitize: "" (omit), "Critical", "Standard", "Sheddable".
+	Criticality string `yaml:"criticality,omitempty"`
+
 	// NetworkIsolation controls whether GatewayManifests emits a
 	// NetworkPolicy that restricts ingress to the app-gateway pod and
 	// egress to DNS + HTTPS. Pointer so a nil (absent-in-YAML) value

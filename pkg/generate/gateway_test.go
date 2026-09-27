@@ -46,7 +46,76 @@ func TestGatewayManifests_WithSecurity(t *testing.T) {
 	assertContains(t, out, "kind: NetworkPolicy")
 	assertContains(t, out, "name: secure-agent-inference-isolation")
 	assertContains(t, out, "component: gateway")
-	assertContains(t, out, "criticality: Standard")
+	// Criticality is NOT asserted here — turning on LLM-safety features
+	// must not silently set a scheduling-priority classification. That
+	// coupling was the CostBudget defect; see the criticality tests
+	// below for the pinning.
+}
+
+// A default spec (no security block at all) MUST NOT emit a
+// `criticality:` line — inferctl should not pick a scheduling priority
+// on the operator's behalf. Omitting defers to the InferenceModel CRD's
+// own default, which is the authority.
+func TestGatewayManifests_DefaultOmitsCriticality(t *testing.T) {
+	s := &spec.ModelSpec{
+		Name:  "no-criticality",
+		Model: "qwen3:8b",
+	}
+
+	out, err := GatewayManifests(s)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(out, "criticality:") {
+		t.Errorf("default (no criticality set) must not emit a criticality line; got:\n%s", out)
+	}
+}
+
+// The load-bearing decoupling pin. Before this commit, PromptInjection
+// or PIIRedaction being on silently emitted `criticality: Standard` on
+// the InferenceModel, which is perverse — nobody choosing PII redaction
+// is choosing a Standard scheduling priority classification for their
+// inference. Now they're unrelated.
+func TestGatewayManifests_LLMFlagsDoNotDriveCriticality(t *testing.T) {
+	s := &spec.ModelSpec{
+		Name:  "safety-only",
+		Model: "llama3.3:70b",
+		Security: spec.SecuritySpec{
+			PromptInjectionProtection: true,
+			PIIRedaction:              true,
+			// Criticality intentionally unset.
+		},
+	}
+
+	out, err := GatewayManifests(s)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(out, "criticality:") {
+		t.Errorf("LLM-safety flags being on MUST NOT set criticality; got:\n%s", out)
+	}
+}
+
+// Each of the three valid values, when set explicitly, MUST reach the
+// generated manifest verbatim. Table-driven so a fourth CRD value
+// (should the InferenceModel schema ever grow one) surfaces here.
+func TestGatewayManifests_ExplicitCriticalityValuesEmit(t *testing.T) {
+	for _, v := range []string{"Critical", "Standard", "Sheddable"} {
+		t.Run(v, func(t *testing.T) {
+			s := &spec.ModelSpec{
+				Name:  "explicit-crit",
+				Model: "qwen3:8b",
+				Security: spec.SecuritySpec{
+					Criticality: v,
+				},
+			}
+			out, err := GatewayManifests(s)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertContains(t, out, "criticality: "+v)
+		})
+	}
 }
 
 // Default emits the NetworkPolicy. inferctl generates manifests, it

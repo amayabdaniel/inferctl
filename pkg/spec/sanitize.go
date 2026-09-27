@@ -52,7 +52,23 @@ func (s *ModelSpec) Sanitize() error {
 		}
 	}
 
+	if err := validateCriticality(s.Security.Criticality); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateCriticality accepts the three InferenceModel CRD values or an
+// empty string (which means "omit the field, defer to the CRD default").
+// Strict decoding catches a misspelled KEY like `critcality:`; this
+// catches a misspelled VALUE like `criticality: Stanadard`.
+func validateCriticality(c string) error {
+	switch c {
+	case "", "Critical", "Standard", "Sheddable":
+		return nil
+	}
+	return fmt.Errorf("security.criticality %q is not a valid InferenceModel classification (must be Critical, Standard, Sheddable, or omitted)", c)
 }
 
 func validateName(name, field string) error {
