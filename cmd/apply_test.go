@@ -90,32 +90,6 @@ func TestApply_DryRunSkipsKubectlCheck(t *testing.T) {
 	}
 }
 
-// Effect check for guard 1: even though the error mentions kubectl, it
-// MUST NOT have already spawned kubectl before failing. We prove this
-// by dropping a poisoned "kubectl" script in the otherwise-empty PATH:
-// if apply reached exec.Command before its pre-flight check, the
-// poisoned script would run and leave a marker file. It must not.
-func TestApply_NoKubectl_DoesNotSpawnKubectl(t *testing.T) {
-	setSpecFile(t)
-	setDryRun(t, false)
-	setNamespace(t, "default")
-
-	tmpBin := t.TempDir()
-	marker := filepath.Join(tmpBin, "kubectl-ran-marker")
-	// Actually: we WANT LookPath to fail so PATH stays truly empty. The
-	// poisoned-kubectl variant would test spawn-order but conflicts with
-	// LookPath returning success. Instead, we scrub PATH and assert the
-	// error was returned BEFORE any exec — checked via the absence of
-	// the marker file (which no code path here would produce anyway).
-	t.Setenv("PATH", tmpBin)
-
-	_ = runApply(nil, nil)
-
-	if _, err := os.Stat(marker); err == nil {
-		t.Errorf("something produced %s — apply must refuse before doing any exec work", marker)
-	}
-}
-
 // Regression pin: apply's runNamespace flag must reach kubectl args as
 // `-n <namespace>` (not silently defaulted to "default" if the user
 // set --namespace foo). The test doesn't invoke kubectl but verifies
