@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -59,8 +60,14 @@ func Load(path string) (*ModelSpec, error) {
 		return nil, fmt.Errorf("reading spec file: %w", err)
 	}
 
+	// Strict decoding: any unknown key in the YAML fails at parse rather
+	// than being silently dropped. A typo like `securty:` or a stale
+	// field like `allowed_origins:` (which the tool once carried and
+	// never consumed) must not travel unnoticed to a generated manifest.
 	var spec ModelSpec
-	if err := yaml.Unmarshal(data, &spec); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&spec); err != nil {
 		return nil, fmt.Errorf("parsing spec file: %w", err)
 	}
 

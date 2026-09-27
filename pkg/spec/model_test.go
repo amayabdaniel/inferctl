@@ -3,6 +3,7 @@ package spec
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -133,6 +134,45 @@ func TestLoad_FileNotFound(t *testing.T) {
 	_, err := Load("/nonexistent/model.yaml")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
+	}
+}
+
+// Strict decoding: a spec carrying an unknown key MUST fail at parse
+// rather than being silently dropped. Prevents typos (`securty:`
+// instead of `security:`) from producing a spec that validates,
+// generates cleanly, and quietly discards the operator's intent.
+func TestLoad_UnknownFieldFailsLoudly(t *testing.T) {
+	path := writeTempFile(t, `
+name: test
+model: qwen3:8b
+bogus_field: hi
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for unknown field, got nil (silent drop is the defect)")
+	}
+	if !strings.Contains(err.Error(), "bogus_field") {
+		t.Errorf("error should name the unknown field so an operator can find it; got: %v", err)
+	}
+}
+
+func TestLoad_TypoedTopLevelKeyFailsLoudly(t *testing.T) {
+	// A realistic scenario: operator mistypes `security` as `securty`.
+	// Before strict decoding this parsed as a spec with no security
+	// block, which then generated manifests missing the entire security
+	// posture the operator thought they configured.
+	path := writeTempFile(t, `
+name: test
+model: qwen3:8b
+securty:
+  prompt_injection_protection: true
+`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for typoed security key, got nil")
+	}
+	if !strings.Contains(err.Error(), "securty") {
+		t.Errorf("error should name the typoed key; got: %v", err)
 	}
 }
 
