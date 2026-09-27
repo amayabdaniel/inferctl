@@ -109,7 +109,9 @@ func writeTempSpec(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "model.yaml")
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write temp spec: %v", err)
+	}
 	return path
 }
 
