@@ -49,7 +49,14 @@ func TestGatewayManifests_WithSecurity(t *testing.T) {
 	assertContains(t, out, "criticality: Standard")
 }
 
-func TestGatewayManifests_NoNetworkPolicyWithoutSecurity(t *testing.T) {
+// Default emits the NetworkPolicy. inferctl generates manifests, it
+// does not apply them — so a restrictive default is visible in the YAML
+// the operator reviews before applying, and easily removed. The
+// previous behaviour (no NetworkPolicy unless the operator turned on
+// EITHER PromptInjectionProtection OR PIIRedaction, two unrelated
+// LLM-safety features) was invisible-permissive: the absence of a
+// policy in a diff is not something a reviewer notices.
+func TestGatewayManifests_DefaultEmitsNetworkPolicy(t *testing.T) {
 	s := &spec.ModelSpec{
 		Name:  "open-model",
 		Model: "qwen3:8b",
@@ -60,8 +67,57 @@ func TestGatewayManifests_NoNetworkPolicyWithoutSecurity(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if !strings.Contains(out, "kind: NetworkPolicy") {
+		t.Error("default (no security block) must emit a NetworkPolicy; a restrictive-visible default beats a permissive-invisible one")
+	}
+}
+
+func TestGatewayManifests_ExplicitOptOut(t *testing.T) {
+	off := false
+	s := &spec.ModelSpec{
+		Name:  "public-model",
+		Model: "qwen3:8b",
+		Security: spec.SecuritySpec{
+			NetworkIsolation: &off,
+		},
+	}
+
+	out, err := GatewayManifests(s)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	if strings.Contains(out, "NetworkPolicy") {
-		t.Error("should not generate NetworkPolicy when no security settings")
+		t.Error("explicit network_isolation: false must skip NetworkPolicy emission")
+	}
+}
+
+// This is the load-bearing test. It pins the DECOUPLING — the previous
+// implementation gated Isolated on `PromptInjectionProtection ||
+// PIIRedaction`, so an operator who wanted prompt-injection protection
+// got a NetworkPolicy they didn't ask for, and an operator who wanted
+// network isolation off but PII redaction on could not express it. The
+// two are unrelated. After this change, LLM-safety flags do not drive
+// isolation and isolation does not drive LLM-safety flags.
+func TestGatewayManifests_LLMFlagsDoNotDriveIsolation(t *testing.T) {
+	off := false
+	s := &spec.ModelSpec{
+		Name:  "safety-only-model",
+		Model: "llama3.3:70b",
+		Security: spec.SecuritySpec{
+			PromptInjectionProtection: true,
+			PIIRedaction:              true,
+			NetworkIsolation:          &off,
+		},
+	}
+
+	out, err := GatewayManifests(s)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if strings.Contains(out, "NetworkPolicy") {
+		t.Errorf("LLM-safety flags being on MUST NOT force NetworkPolicy when network_isolation is explicitly off; got NetworkPolicy in output")
 	}
 }
 

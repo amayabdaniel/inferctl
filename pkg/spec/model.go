@@ -51,6 +51,26 @@ type ResourceSpec struct {
 type SecuritySpec struct {
 	PromptInjectionProtection bool `yaml:"prompt_injection_protection,omitempty"`
 	PIIRedaction              bool `yaml:"pii_redaction,omitempty"`
+
+	// NetworkIsolation controls whether GatewayManifests emits a
+	// NetworkPolicy that restricts ingress to the app-gateway pod and
+	// egress to DNS + HTTPS. Pointer so a nil (absent-in-YAML) value
+	// defaults to true — inferctl generates manifests, it does not
+	// apply them, so a restrictive default appears in the YAML the
+	// operator reviews before applying, and is easily deletable. An
+	// invisible absence of a NetworkPolicy is not something anyone
+	// notices in a diff review. An explicit `network_isolation: false`
+	// opts out.
+	NetworkIsolation *bool `yaml:"network_isolation,omitempty"`
+}
+
+// EmitNetworkPolicy reports whether GatewayManifests should include the
+// NetworkPolicy for this spec. Nil (unset) means the default of true.
+func (s SecuritySpec) EmitNetworkPolicy() bool {
+	if s.NetworkIsolation == nil {
+		return true
+	}
+	return *s.NetworkIsolation
 }
 
 func Load(path string) (*ModelSpec, error) {

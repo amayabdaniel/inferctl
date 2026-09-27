@@ -90,10 +90,20 @@ type gatewayData struct {
 // network isolation policies from a ModelSpec.
 func GatewayManifests(s *spec.ModelSpec) (string, error) {
 	data := gatewayData{
-		Name:       s.Name,
-		Model:      s.VLLMModel(),
+		Name:  s.Name,
+		Model: s.VLLMModel(),
+		// CostBudget stays coupled to the LLM-safety flags for now — the
+		// coupling is a separate finding and requires a policy decision
+		// (a cost budget implies a numeric ceiling that has to come from
+		// somewhere, unlike NetworkPolicy which can default restrictive
+		// visibly).
 		CostBudget: s.Security.PromptInjectionProtection || s.Security.PIIRedaction,
-		Isolated:   s.Security.PromptInjectionProtection || s.Security.PIIRedaction,
+		// Network isolation derives from an explicit security field.
+		// Default (nil pointer) is true so a spec with no security block
+		// still gets a NetworkPolicy in its generated YAML — restrictive
+		// default, visibly present in the diff, explicit opt-out via
+		// `security.network_isolation: false`.
+		Isolated: s.Security.EmitNetworkPolicy(),
 	}
 
 	var buf bytes.Buffer
