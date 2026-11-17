@@ -52,7 +52,6 @@ prompt_template: |
   You are a helpful customer support agent.
 observability:
   metrics: true
-  tracing: true
 scaling:
   min_replicas: 1
   max_replicas: 4
@@ -62,8 +61,10 @@ resources:
   gpu_count: 1
   memory_mi: 16384
 security:
-  prompt_injection_protection: true
-  pii_redaction: true
+  # criticality: Standard         # scheduling priority on the InferenceModel
+  # network_isolation: false      # opt out of the default NetworkPolicy emit
+  # Prompt-injection and PII controls live at the proxy layer — see
+  # modelgate below.
 ```
 
 ### 2. Check GPU compatibility

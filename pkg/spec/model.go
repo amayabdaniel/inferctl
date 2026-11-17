@@ -30,9 +30,16 @@ type ToolSpec struct {
 	Schema   string `yaml:"schema,omitempty"`
 }
 
+// ObservabilitySpec previously carried a Tracing bool alongside Metrics,
+// documented in examples/model.yaml and README's quick-start as if the
+// generated vLLM Deployment honored it — but the vllm template only
+// reads Observability.Metrics (wiring --metrics on the vllm command),
+// and no generated manifest ever emitted tracing config. Removed rather
+// than kept as scaffolding; the honest re-introduction is to add
+// Tracing back the same commit that wires an OTEL/Jaeger exporter into
+// the generated Deployment.
 type ObservabilitySpec struct {
 	Metrics bool `yaml:"metrics,omitempty"`
-	Tracing bool `yaml:"tracing,omitempty"`
 }
 
 type ScalingSpec struct {
@@ -48,10 +55,23 @@ type ResourceSpec struct {
 	CPUCores int    `yaml:"cpu_cores,omitempty"`
 }
 
+// SecuritySpec previously carried PromptInjectionProtection and
+// PIIRedaction bools, documented in examples/model.yaml and tested
+// through round-trip fixtures. inferctl generates manifests for
+// Gateway API + InferenceModel, and NEITHER CRD has a field where
+// those flags would land — they are proxy-layer controls, enforced by
+// modelgate at request time, not by the CRDs this tool emits. Two
+// prior commits (8bb7612 decoupling them from NetworkIsolation,
+// 1a13ed1 decoupling them from Criticality) removed WRONG wirings and
+// left the fields in place, with gateway tests that assert "LLM flags
+// do not drive X" — which was accurate but concealed that the fields
+// drive NOTHING at all. Removed rather than kept as scaffolding so
+// the schema stops promising controls inferctl can't deliver; the
+// honest home for them is already modelgate's InferencePolicySpec,
+// linked from the README. Same shape as the ObservabilitySpec Tracing
+// removal in this commit and the modelgate Budgets removal in
+// fb0e07f.
 type SecuritySpec struct {
-	PromptInjectionProtection bool `yaml:"prompt_injection_protection,omitempty"`
-	PIIRedaction              bool `yaml:"pii_redaction,omitempty"`
-
 	// Criticality maps to the InferenceModel CRD's scheduling-priority
 	// classification. Empty (absent in YAML) means "do not emit the
 	// field", deferring to the CRD's own default — inferctl should not

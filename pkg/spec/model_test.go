@@ -16,7 +16,6 @@ quantization: q4_k_m
 prompt_template: "You are a helpful assistant."
 observability:
   metrics: true
-  tracing: true
 scaling:
   min_replicas: 1
   max_replicas: 4
@@ -27,8 +26,7 @@ resources:
   memory_mi: 16384
   cpu_cores: 4
 security:
-  prompt_injection_protection: true
-  pii_redaction: true
+  criticality: Standard
 `
 	path := writeTempFile(t, yaml)
 	spec, err := Load(path)
@@ -48,8 +46,8 @@ security:
 	if spec.Scaling.MaxReplicas != 4 {
 		t.Errorf("expected max_replicas 4, got %d", spec.Scaling.MaxReplicas)
 	}
-	if !spec.Security.PromptInjectionProtection {
-		t.Error("expected prompt_injection_protection true")
+	if spec.Security.Criticality != "Standard" {
+		t.Errorf("expected criticality Standard, got %q", spec.Security.Criticality)
 	}
 	if !spec.Observability.Metrics {
 		t.Error("expected observability.metrics true")
@@ -165,7 +163,7 @@ func TestLoad_TypoedTopLevelKeyFailsLoudly(t *testing.T) {
 name: test
 model: qwen3:8b
 securty:
-  prompt_injection_protection: true
+  criticality: Standard
 `)
 	_, err := Load(path)
 	if err == nil {

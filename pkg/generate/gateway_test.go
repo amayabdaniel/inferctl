@@ -28,14 +28,10 @@ func TestGatewayManifests_BasicRoute(t *testing.T) {
 	assertContains(t, out, "x-model")
 }
 
-func TestGatewayManifests_WithSecurity(t *testing.T) {
+func TestGatewayManifests_EmitsNetworkPolicyByDefault(t *testing.T) {
 	s := &spec.ModelSpec{
 		Name:  "secure-agent",
 		Model: "llama3.3:70b",
-		Security: spec.SecuritySpec{
-			PromptInjectionProtection: true,
-			PIIRedaction:              true,
-		},
 	}
 
 	out, err := GatewayManifests(s)
@@ -46,10 +42,9 @@ func TestGatewayManifests_WithSecurity(t *testing.T) {
 	assertContains(t, out, "kind: NetworkPolicy")
 	assertContains(t, out, "name: secure-agent-inference-isolation")
 	assertContains(t, out, "component: gateway")
-	// Criticality is NOT asserted here — turning on LLM-safety features
-	// must not silently set a scheduling-priority classification. That
-	// coupling was the CostBudget defect; see the criticality tests
-	// below for the pinning.
+	// NetworkIsolation defaults to true; see TestGatewayManifests_
+	// DefaultEmitsNetworkPolicy below for the stronger invariant that
+	// an absent security block still emits the policy.
 }
 
 // A default spec (no security block at all) MUST NOT emit a
@@ -68,31 +63,6 @@ func TestGatewayManifests_DefaultOmitsCriticality(t *testing.T) {
 	}
 	if strings.Contains(out, "criticality:") {
 		t.Errorf("default (no criticality set) must not emit a criticality line; got:\n%s", out)
-	}
-}
-
-// The load-bearing decoupling pin. Before this commit, PromptInjection
-// or PIIRedaction being on silently emitted `criticality: Standard` on
-// the InferenceModel, which is perverse — nobody choosing PII redaction
-// is choosing a Standard scheduling priority classification for their
-// inference. Now they're unrelated.
-func TestGatewayManifests_LLMFlagsDoNotDriveCriticality(t *testing.T) {
-	s := &spec.ModelSpec{
-		Name:  "safety-only",
-		Model: "llama3.3:70b",
-		Security: spec.SecuritySpec{
-			PromptInjectionProtection: true,
-			PIIRedaction:              true,
-			// Criticality intentionally unset.
-		},
-	}
-
-	out, err := GatewayManifests(s)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if strings.Contains(out, "criticality:") {
-		t.Errorf("LLM-safety flags being on MUST NOT set criticality; got:\n%s", out)
 	}
 }
 
@@ -120,11 +90,7 @@ func TestGatewayManifests_ExplicitCriticalityValuesEmit(t *testing.T) {
 
 // Default emits the NetworkPolicy. inferctl generates manifests, it
 // does not apply them — so a restrictive default is visible in the YAML
-// the operator reviews before applying, and easily removed. The
-// previous behaviour (no NetworkPolicy unless the operator turned on
-// EITHER PromptInjectionProtection OR PIIRedaction, two unrelated
-// LLM-safety features) was invisible-permissive: the absence of a
-// policy in a diff is not something a reviewer notices.
+// the operator reviews before applying, and easily removed.
 func TestGatewayManifests_DefaultEmitsNetworkPolicy(t *testing.T) {
 	s := &spec.ModelSpec{
 		Name:  "open-model",
@@ -158,35 +124,6 @@ func TestGatewayManifests_ExplicitOptOut(t *testing.T) {
 
 	if strings.Contains(out, "NetworkPolicy") {
 		t.Error("explicit network_isolation: false must skip NetworkPolicy emission")
-	}
-}
-
-// This is the load-bearing test. It pins the DECOUPLING — the previous
-// implementation gated Isolated on `PromptInjectionProtection ||
-// PIIRedaction`, so an operator who wanted prompt-injection protection
-// got a NetworkPolicy they didn't ask for, and an operator who wanted
-// network isolation off but PII redaction on could not express it. The
-// two are unrelated. After this change, LLM-safety flags do not drive
-// isolation and isolation does not drive LLM-safety flags.
-func TestGatewayManifests_LLMFlagsDoNotDriveIsolation(t *testing.T) {
-	off := false
-	s := &spec.ModelSpec{
-		Name:  "safety-only-model",
-		Model: "llama3.3:70b",
-		Security: spec.SecuritySpec{
-			PromptInjectionProtection: true,
-			PIIRedaction:              true,
-			NetworkIsolation:          &off,
-		},
-	}
-
-	out, err := GatewayManifests(s)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if strings.Contains(out, "NetworkPolicy") {
-		t.Errorf("LLM-safety flags being on MUST NOT force NetworkPolicy when network_isolation is explicitly off; got NetworkPolicy in output")
 	}
 }
 

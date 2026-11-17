@@ -98,10 +98,12 @@ func GatewayManifests(s *spec.ModelSpec) (string, error) {
 		// behalf (Critical can starve other workloads, Sheddable can
 		// evict this one under pressure, Standard is a guess in the
 		// middle). An absent field defers to the InferenceModel CRD's
-		// own default, which is the authority. Previously this was a
-		// bool named CostBudget gated on PromptInjectionProtection ||
-		// PIIRedaction, so enabling either LLM-safety feature silently
-		// downgraded the workload's scheduling priority to Standard.
+		// own default, which is the authority. Previously (pre-1a13ed1)
+		// this was a bool gated on prompt-injection / PII flags, so
+		// enabling either LLM-safety feature silently downgraded the
+		// workload's scheduling priority. Those two flags were removed
+		// outright in the same audit that found this comment — see the
+		// SecuritySpec godoc in pkg/spec/model.go for why.
 		Criticality: s.Security.Criticality,
 		// Network isolation derives from an explicit security field.
 		// Default (nil pointer) is true so a spec with no security block
